@@ -129,7 +129,9 @@ class EnronValidationSource(ValidationDataSource):
             random.Random(seed).shuffle(self.val_filepaths)
 
         # num samples cannot exceed the number of records
-        assert self.num_samples <= len(self.label_fields_to_values), "cannot have more samples than labelled data records"
+        assert self.num_samples <= len(self.label_fields_to_values), (
+            "cannot have more samples than labelled data records"
+        )
 
         # trim to number of samples
         self.val_filepaths = self.val_filepaths[:num_samples]
@@ -531,18 +533,7 @@ class BiodexReactions(BiodexEntry):
     )
 
 
-class BiodexReactionLabels(BiodexReactions):
-    """
-    Retrieve the labels which are most relevant for the given set of inferred reactions.
-    """
-
-    reaction_labels = ListField(
-        desc="Most relevant official terms for adverse reactions for the provided `reactions`",
-        element_type=StringField,
-    )
-
-
-class BiodexRankedReactions(BiodexReactionLabels):
+class BiodexRankedReactions(BiodexReactions):
     """
     You will be presented with the text of a medical article which is partially or entirely about
     an adverse event experienced by a patient in response to taking one or more drugs. You will also
@@ -936,11 +927,19 @@ if __name__ == "__main__":
         )
         plan = Dataset(user_dataset_id, schema=BiodexEntry)
         plan = plan.convert(BiodexReactions)  # infer
+
+        def search_func(index, query, k):
+            results = index.search(query, k=1)
+            results = [result[0] if isinstance(result, list) else result for result in results]
+            sorted_results = sorted(results, key=lambda result: result["score"], reverse=True)
+            return [result["content"] for result in sorted_results[:k]]
+
         plan = plan.retrieve(
-            output_schema=BiodexReactionLabels,
             index=index,
+            search_func=search_func,
             search_attr="reactions",
             output_attr="reaction_labels",
+            output_attr_desc="Most relevant official terms for adverse reactions for the provided `reactions`",
             # k=10, # if we set k, then it will be fixed; if we leave it unspecified then the optimizer will choose
         )  # TODO: retrieve (top-1 retrieve per prediction? or top-k retrieve for all predictions?)
         plan = plan.convert(BiodexRankedReactions)
@@ -972,11 +971,19 @@ if __name__ == "__main__":
         plan = plan.convert(BiodexPatientSex, depends_on=["title", "abstract", "fulltext"])
         plan = plan.convert(BiodexDrugs, depends_on=["title", "abstract", "fulltext"])
         plan = plan.convert(BiodexReactions, depends_on=["title", "abstract", "fulltext"])
+
+        def search_func(index, query, k):
+            results = index.search(query, k=1)
+            results = [result[0] if isinstance(result, list) else result for result in results]
+            sorted_results = sorted(results, key=lambda result: result["score"], reverse=True)
+            return [result["content"] for result in sorted_results[:k]]
+
         plan = plan.retrieve(
-            output_schema=BiodexReactionLabels,
             index=index,
+            search_func=search_func,
             search_attr="reactions",
             output_attr="reaction_labels",
+            output_attr_desc="Most relevant official terms for adverse reactions for the provided `reactions`",
             # k=10, # if we set k, then it will be fixed; if we leave it unspecified then the optimizer will choose
         )  # TODO: retrieve (top-1 retrieve per prediction? or top-k retrieve for all predictions?)
         plan = plan.convert(BiodexRankedReactions)
@@ -1004,7 +1011,7 @@ if __name__ == "__main__":
         }
         optimizer_strategy = "none"
         available_models = [model_str_to_model[args.model]] + [model_str_to_vision_model[args.model]]
-    
+
     # execute pz plan
     config = QueryProcessorConfig(
         policy=policy,
@@ -1029,7 +1036,7 @@ if __name__ == "__main__":
         sample_start_idx=sample_start_idx,
         sample_end_idx=sample_end_idx,
         seed=seed,
-        exp_name=exp_name
+        exp_name=exp_name,
     )
 
     # create filepaths for records and stats
