@@ -10,6 +10,7 @@ from palimpzest.core.data.datasources import DataSource
 from palimpzest.core.elements.filters import Filter
 from palimpzest.core.elements.groupbysig import GroupBySig
 from palimpzest.core.lib.fields import ListField, StringField
+from palimpzest.core.lib.fields import ListField, StringField
 from palimpzest.core.lib.schemas import DefaultSchema, Number, Schema
 from palimpzest.datamanager.datamanager import DataDirectory
 from palimpzest.query.processor.config import QueryProcessorConfig
@@ -142,13 +143,11 @@ class Dataset(Set):
 
     def __init__(self, source: str | list | pd.DataFrame | DataSource, schema: Schema | None = None, *args, **kwargs):
         # convert source (str) -> source (DataSource) if need be
-        source = (
-            DataDirectory().get_or_register_dataset(source) if isinstance(source, (str, list, pd.DataFrame)) else source
-        )
+        updated_source = DataDirectory().get_or_register_dataset(source) if isinstance(source, (str, list, pd.DataFrame)) else source
         if schema is None:
             schema = Schema.from_df(source) if isinstance(source, pd.DataFrame) else DefaultSchema
         # intialize class
-        super().__init__(source, schema, *args, **kwargs)
+        super().__init__(updated_source, schema, *args, **kwargs)
 
     def copy(self) -> Dataset:
         source_copy = self._source.copy()
@@ -218,6 +217,11 @@ class Dataset(Set):
             desc=desc,
             nocache=self._nocache,
         )
+    
+    # This is a convenience for users who like DataFrames-like syntax.   
+    def add_columns(self, columns:dict[str, str], cardinality: Cardinality = Cardinality.ONE_TO_ONE) -> Dataset:
+        new_output_schema = self.schema.add_fields(columns)
+        return self.convert(new_output_schema, udf=None, cardinality=cardinality, depends_on=None, desc="Add columns " + str(columns))
 
     def count(self) -> Dataset:
         """Apply a count aggregation to this set"""
