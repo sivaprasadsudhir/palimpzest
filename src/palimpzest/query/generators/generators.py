@@ -35,7 +35,7 @@ from palimpzest.constants import (
 from palimpzest.core.data.dataclasses import GenerationStats
 from palimpzest.core.elements.records import DataRecord
 from palimpzest.prompts import PromptFactory
-from palimpzest.tools.logger import setup_logger
+from palimpzest.query.generators.api_client_factory import APIClientFactory
 from palimpzest.utils.generation_helpers import get_json_from_answer
 from palimpzest.utils.sandbox import API
 
@@ -46,6 +46,7 @@ InputType = TypeVar("InputType")
 
 
 logger = logging.getLogger(__name__)
+
 
 def generator_factory(
     model: Model, prompt_strategy: PromptStrategy, cardinality: Cardinality, verbose: bool = False
